@@ -448,14 +448,15 @@
         }
 
         .marker-sos::before {
-            content: '+';
+            content: '✚';
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             color: white;
+            text-shadow: 0 0 3px rgba(0,0,0,0.5);
             animation: sosTextPulse 0.5s ease-in-out infinite alternate;
         }
 
@@ -1217,44 +1218,71 @@
             }
             
             addGroupMarkers() {
-                this.groups.forEach(group => {
-                    const icon = L.divIcon({ html: '<div class="marker-group"></div>', className: 'custom-marker', iconSize: [20, 20], iconAnchor: [10, 10] });
+                // Очищуємо старі маркери груп
+                this.groupMarkers.forEach(({ marker }) => {
+                    this.map.removeLayer(marker);
+                });
+                this.groupMarkers = [];
+                
+                // Додаємо маркери тільки для НЕактивних груп
+                this.groups.filter(group => !group.active).forEach(group => {
+                    this.addSingleGroupMarker(group);
+                });
+            }
+            
+            addSingleGroupMarker(group) {
+                // Додавання одного маркера групи
+                const icon = L.divIcon({ 
+                    html: '<div class="marker-group"></div>', 
+                    className: 'custom-marker', 
+                    iconSize: [20, 20], 
+                    iconAnchor: [10, 10] 
+                });
+                
+                const marker = L.marker([group.lat, group.lng], { icon }).addTo(this.map);
+                this.groupMarkers.push({ marker, group });
+                
+                // Отримуємо адресу та створюємо popup
+                this.getAddress(group.lat, group.lng).then(address => {
+                    let popupContent = `<strong>${group.name}</strong><br>`;
+                    popupContent += `${group.type}<br>`;
+                    popupContent += `Особовий склад: ${group.personnel}<br>`;
+                    popupContent += `Адреса: ${address}<br>`;
+                    popupContent += `Координати: ${group.lat.toFixed(6)}, ${group.lng.toFixed(6)}<br>`;
+                    popupContent += `<div style="margin-top: 8px; display: flex; gap: 5px;">`;
+                    popupContent += `<button onclick="navigator.clipboard.writeText('${group.lat.toFixed(6)}, ${group.lng.toFixed(6)}'); sosSystem.showNotification('Координати скопійовано')" style="background: #1976d2; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📋</button>`;
+                    popupContent += `<button onclick="window.open('https://www.google.com/maps?q=${group.lat},${group.lng}', '_blank')" style="background: #4CAF50; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗺️</button>`;
+                    popupContent += `<button onclick="sosSystem.findNearestHospitalForGroup(${group.id})" style="background: #FF9800; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🏥</button>`;
+                    popupContent += `<button onclick="sosSystem.activateGroupFromMap(${group.id})" style="background: #d32f2f; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">🆘 SOS</button>`;
+                    popupContent += `</div>`;
                     
-                    this.getAddress(group.lat, group.lng).then(address => {
-                        let popupContent = `<strong>${group.name}</strong><br>`;
-                        popupContent += `${group.type}<br>`;
-                        popupContent += `Особовий склад: ${group.personnel}<br>`;
-                        popupContent += `Адреса: ${address}<br>`;
-                        popupContent += `Координати: ${group.lat.toFixed(6)}, ${group.lng.toFixed(6)}<br>`;
-                        popupContent += `<div style="margin-top: 8px; display: flex; gap: 5px;">`;
-                        popupContent += `<button onclick="navigator.clipboard.writeText('${group.lat.toFixed(6)}, ${group.lng.toFixed(6)}'); sosSystem.showNotification('Координати скопійовано')" style="background: #1976d2; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📋</button>`;
-                        popupContent += `<button onclick="window.open('https://www.google.com/maps?q=${group.lat},${group.lng}', '_blank')" style="background: #4CAF50; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗺️</button>`;
-                        popupContent += `<button onclick="sosSystem.findNearestHospitalForGroup(${group.id})" style="background: #FF9800; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🏥</button>`;
-                        
-                        if (!group.active) {
-                            popupContent += `<button onclick="sosSystem.activateGroupFromMap(${group.id})" style="background: #d32f2f; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">🆘 SOS</button>`;
-                        }
-                        popupContent += `</div>`;
-                        
-                        const marker = L.marker([group.lat, group.lng], { icon })
-                            .bindPopup(popupContent)
-                            .addTo(this.map);
-                        this.groupMarkers.push({ marker, group });
-                    });
+                    marker.bindPopup(popupContent);
+                }).catch(() => {
+                    let popupContent = `<strong>${group.name}</strong><br>${group.type}<br>Особовий склад: ${group.personnel}<br>Координати: ${group.lat.toFixed(6)}, ${group.lng.toFixed(6)}`;
+                    marker.bindPopup(popupContent);
                 });
             }
             
             addHospitalMarkers() {
+                // Додавання маркерів лікарень на карту
                 this.hospitals.forEach(hospital => {
-                    const icon = L.divIcon({ html: '<div class="marker-hospital"></div>', className: 'custom-marker', iconSize: [18, 18], iconAnchor: [9, 9] });
+                    const icon = L.divIcon({ 
+                        html: '<div class="marker-hospital"></div>', 
+                        className: 'custom-marker', 
+                        iconSize: [18, 18], 
+                        iconAnchor: [9, 9] 
+                    });
+                    
                     let hospitalPopup = `<strong>${hospital.name}</strong><br>Лікарня<br>`;
-                hospitalPopup += `Координати: ${hospital.lat.toFixed(6)}, ${hospital.lng.toFixed(6)}<br>`;
-                hospitalPopup += `<div style="margin-top: 8px; display: flex; gap: 5px;">`;
-                hospitalPopup += `<button onclick="navigator.clipboard.writeText('${hospital.lat.toFixed(6)}, ${hospital.lng.toFixed(6)}'); sosSystem.showNotification('Координати скопійовано')" style="background: #1976d2; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📋</button>`;
-                hospitalPopup += `<button onclick="window.open('https://www.google.com/maps?q=${hospital.lat},${hospital.lng}', '_blank')" style="background: #4CAF50; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗺️</button>`;
-                hospitalPopup += `</div>`;
-                
-                L.marker([hospital.lat, hospital.lng], { icon }).bindPopup(hospitalPopup).addTo(this.map);
+                    hospitalPopup += `Координати: ${hospital.lat.toFixed(6)}, ${hospital.lng.toFixed(6)}<br>`;
+                    hospitalPopup += `<div style="margin-top: 8px; display: flex; gap: 5px;">`;
+                    hospitalPopup += `<button onclick="navigator.clipboard.writeText('${hospital.lat.toFixed(6)}, ${hospital.lng.toFixed(6)}'); sosSystem.showNotification('Координати скопійовано')" style="background: #1976d2; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📋</button>`;
+                    hospitalPopup += `<button onclick="window.open('https://www.google.com/maps?q=${hospital.lat},${hospital.lng}', '_blank')" style="background: #4CAF50; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗺️</button>`;
+                    hospitalPopup += `</div>`;
+                    
+                    L.marker([hospital.lat, hospital.lng], { icon })
+                        .bindPopup(hospitalPopup)
+                        .addTo(this.map);
                 });
             }
             
@@ -1300,13 +1328,14 @@
                 this.activeIncidents.push(incident);
                 this.incidentVictims[incident.id] = [];
                 this.incidentLogs[incident.id] = [];
+                
+                // Знаходимо звичайний маркер групи та ВИДАЛЯЄМО його
                 const markerData = this.groupMarkers.find(m => m.group.id === groupId);
                 if (markerData) {
-                    const markerElement = markerData.marker.getElement();
-                    const markerDiv = markerElement.querySelector('.marker-group');
-                    if (markerDiv) markerDiv.classList.add('active');
+                    this.map.removeLayer(markerData.marker); // Видаляємо звичайний маркер
                 }
-                this.createSOSMarker();
+                
+                this.createSOSMarker(); // Створюємо SOS маркер замість звичайного
             }
             
             startSOS() {
@@ -1329,19 +1358,27 @@
                 }
                 this.sosMarkers = [];
                 
-                // Створюємо маркер для кожного активного інциденту
+                // Створюємо SOS маркер ТОЧНО на місці групи
                 this.activeIncidents.forEach(incident => {
-                    const incidentPos = [incident.group.lat, incident.group.lng];
-                    const nearestHospital = this.findNearestHospital(incidentPos);      // Пошук найближчої лікарні
-                    const nearestGroup = this.findNearestAvailableGroup(incidentPos);  // Пошук найближчої доступної групи
+                    const groupLat = incident.group.lat;  // Координати ГРУПИ
+                    const groupLng = incident.group.lng;  // Координати ГРУПИ
+                    const incidentPos = [groupLat, groupLng];
                     
-                    this.getAddress(incidentPos[0], incidentPos[1]).then(address => {
-                        const icon = L.divIcon({ html: '<div class="marker-sos"></div>', className: 'custom-marker', iconSize: [30, 30], iconAnchor: [15, 15] });
+                    const nearestHospital = this.findNearestHospital(incidentPos);
+                    const nearestGroup = this.findNearestAvailableGroup(incidentPos);
+                    
+                    this.getAddress(groupLat, groupLng).then(address => {
+                        const icon = L.divIcon({ 
+                            html: '<div class="marker-sos"></div>', 
+                            className: 'custom-marker', 
+                            iconSize: [30, 30], 
+                            iconAnchor: [15, 15] 
+                        });
                         
                         let popupContent = `<strong>🆘 НАДЗВИЧАЙНА СИТУАЦІЯ</strong><br>`;
                         popupContent += `Група: ${incident.group.name}<br>`;
                         popupContent += `Адреса: ${address}<br>`;
-                        popupContent += `Координати: ${incidentPos[0].toFixed(6)}, ${incidentPos[1].toFixed(6)}<br>`;
+                        popupContent += `Координати: ${groupLat.toFixed(6)}, ${groupLng.toFixed(6)}<br>`;
                         
                         if (nearestHospital) {
                             const hospitalDistance = (this.calculateDistance(incidentPos, [nearestHospital.lat, nearestHospital.lng]) * 111).toFixed(1);
@@ -1354,12 +1391,13 @@
                         }
                         
                         popupContent += `<div style="margin-top: 8px; display: flex; gap: 5px;">`;
-                        popupContent += `<button onclick="sosSystem.routeToSOS(${incidentPos[0]}, ${incidentPos[1]})" style="background: #FF5722; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📍</button>`;
-                        popupContent += `<button onclick="navigator.clipboard.writeText('${incidentPos[0].toFixed(6)}, ${incidentPos[1].toFixed(6)}'); sosSystem.showNotification('Координати скопійовано')" style="background: #1976d2; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📋</button>`;
-                        popupContent += `<button onclick="window.open('https://www.google.com/maps?q=${incidentPos[0]},${incidentPos[1]}', '_blank')" style="background: #4CAF50; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗺️</button>`;
+                        popupContent += `<button onclick="sosSystem.routeToSOS(${groupLat}, ${groupLng})" style="background: #FF5722; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📍</button>`;
+                        popupContent += `<button onclick="navigator.clipboard.writeText('${groupLat.toFixed(6)}, ${groupLng.toFixed(6)}'); sosSystem.showNotification('Координати скопійовано')" style="background: #1976d2; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📋</button>`;
+                        popupContent += `<button onclick="window.open('https://www.google.com/maps?q=${groupLat},${groupLng}', '_blank')" style="background: #4CAF50; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗺️</button>`;
                         popupContent += `</div>`;
                         
-                        const sosMarker = L.marker([incidentPos[0], incidentPos[1]], { icon })
+                        // SOS маркер створюється ТОЧНО на координатах групи
+                        const sosMarker = L.marker([groupLat, groupLng], { icon })
                             .bindPopup(popupContent)
                             .addTo(this.map);
                         
@@ -1494,12 +1532,17 @@
                 if (incidentIndex === -1) return;
                 const incident = this.activeIncidents[incidentIndex];
                 incident.group.active = false;
-                const markerData = this.groupMarkers.find(m => m.group.id === incident.group.id);
-                if (markerData) {
-                    const markerElement = markerData.marker.getElement();
-                    const markerDiv = markerElement.querySelector('.marker-group');
-                    if (markerDiv) markerDiv.classList.remove('active');
-                }
+                
+                // Видаляємо SOS маркер та повертаємо звичайний маркер групи
+                this.sosMarkers.forEach(marker => {
+                    if (marker.getLatLng().lat === incident.group.lat && marker.getLatLng().lng === incident.group.lng) {
+                        this.map.removeLayer(marker);
+                    }
+                });
+                
+                // Повертаємо звичайний маркер групи
+                this.addSingleGroupMarker(incident.group);
+                
                 this.activeIncidents.splice(incidentIndex, 1);
                 delete this.incidentVictims[incidentId];
                 delete this.incidentLogs[incidentId];
@@ -1510,22 +1553,19 @@
                 // Зупинка всіх SOS операцій
                 this.isActive = false;
                 this.groups.forEach(group => group.active = false);                 // Деактивуємо всі групи
-                this.activeIncidents = [];                                          // Очищуємо інциденти
-                this.incidentVictims = {};                                          // Очищуємо картки постраждалих
-                this.incidentLogs = {};                                             // Очищуємо логи
                 
-                // Видаляємо активний стан з маркерів груп
-                this.groupMarkers.forEach(({ marker }) => {
-                    const markerElement = marker.getElement();
-                    const markerDiv = markerElement.querySelector('.marker-group');
-                    if (markerDiv) markerDiv.classList.remove('active');
-                });
-                
-                // Видаляємо всі SOS маркери
+                // Видаляємо всі SOS маркери та повертаємо звичайні маркери груп
                 if (this.sosMarkers) { 
                     this.sosMarkers.forEach(marker => this.map.removeLayer(marker)); 
                     this.sosMarkers = []; 
                 }
+                
+                // Повертаємо всі звичайні маркери груп
+                this.addGroupMarkers();
+                
+                this.activeIncidents = [];                                          // Очищуємо інциденти
+                this.incidentVictims = {};                                          // Очищуємо картки постраждалих
+                this.incidentLogs = {};                                             // Очищуємо логи
                 
                 document.getElementById('incidentsBtn').classList.add('hidden');    // Ховаємо кнопку інцидентів
                 this.closeIncidentsPanel();         // Закриваємо панель інцидентів
@@ -1567,11 +1607,16 @@
             }
             
             createWave() {
-                if (!this.sosMarkers || this.activeIncidents.length === 0) return;
+                // Створення анімації хвиль від активних груп (SOS маркерів)
+                if (!this.activeIncidents || this.activeIncidents.length === 0) return;
                 
                 this.activeIncidents.forEach(incident => {
-                    const markerPos = this.map.latLngToContainerPoint([incident.group.lat, incident.group.lng]);
+                    // Використовуємо координати ГРУПИ, а не лікарні
+                    const groupLat = incident.group.lat;
+                    const groupLng = incident.group.lng;
+                    const markerPos = this.map.latLngToContainerPoint([groupLat, groupLng]);
                     
+                    // Перша хвиля
                     const wave = document.createElement('div');
                     wave.className = 'wave';
                     wave.style.left = markerPos.x + 'px';
@@ -1580,6 +1625,7 @@
                     wave.style.zIndex = '500';
                     document.body.appendChild(wave);
                     
+                    // Друга хвиля з затримкою
                     setTimeout(() => {
                         const wave2 = document.createElement('div');
                         wave2.className = 'wave';
@@ -1797,6 +1843,7 @@
                         });
                         
                         this.userLocation = { lat: userLat, lng: userLng };
+                        this.userMarker = null; // Зберігаємо посилання на маркер користувача
                         
                         this.getAddress(userLat, userLng).then(address => {
                             let userPopup = `<strong>📍 Ваше місцезнаходження</strong><br>`;
@@ -1807,7 +1854,7 @@
                             userPopup += `<button onclick="window.open('https://www.google.com/maps?q=${userLat},${userLng}', '_blank')" style="background: #4CAF50; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗺️</button>`;
                             userPopup += `</div>`;
                             
-                            L.marker([userLat, userLng], { icon: userIcon })
+                            this.userMarker = L.marker([userLat, userLng], { icon: userIcon })
                                 .bindPopup(userPopup)
                                 .addTo(this.map);
                                 
@@ -2166,21 +2213,5 @@
         });
     </script>
     
-    <!-- 
-        🆘 SOS Emergency System v2.0
-        Система екстреного реагування для координації рятувальних операцій
-        
-        Основний функціонал:
-        - Інтерактивна карта з групами та лікарнями
-        - SOS сигнали з анімацією та візуальними ефектами
-        - Картки постраждалих з медичними даними
-        - Маршрутизація до найближчих лікарень
-        - Журналювання подій та координація груп
-        - Геолокація користувача та навігація
-        - Масштабна лінійка та інструменти карти
-        
-        by Illia Usachov
-        Дата: 2024
-    -->
 </body>
 </html>
