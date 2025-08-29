@@ -8,12 +8,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🆘 SOS Emergency System</title>
     
-    <!-- Підключення зовнішніх бібліотек -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />                    <!-- Стилі для карти Leaflet -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" /> <!-- Стилі для маршрутизації -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />        <!-- Іконки Font Awesome -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-scale@1.0.0/dist/leaflet-scale.css" />         <!-- Масштабна лінійка -->
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet"> <!-- Шрифт Rajdhani -->
+    <!-- Підключення тільки необхідних бібліотек -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     
     <style>
         /* Глобальні стилі - скидання відступів та встановлення box-sizing */
@@ -991,7 +989,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-scale@1.0.0/dist/leaflet-scale.js"></script>
     
     <script>
         // 🆘 SOS Emergency System - Система екстреного реагування
@@ -1585,14 +1582,12 @@
             }
             
             createWave() {
-                // Створення анімації хвиль від активних груп (SOS маркерів)
-                if (!this.activeIncidents || this.activeIncidents.length === 0) return;
+                // Створення анімації хвиль ТІЛЬКИ від SOS маркерів (активних груп)
+                if (!this.sosMarkers || this.sosMarkers.length === 0) return;
                 
-                this.activeIncidents.forEach(incident => {
-                    // Використовуємо координати ГРУПИ, а не лікарні
-                    const groupLat = incident.group.lat;
-                    const groupLng = incident.group.lng;
-                    const markerPos = this.map.latLngToContainerPoint([groupLat, groupLng]);
+                this.sosMarkers.forEach(sosMarker => {
+                    // Отримуємо позицію SOS маркера на екрані
+                    const markerPos = this.map.latLngToContainerPoint(sosMarker.getLatLng());
                     
                     // Перша хвиля
                     const wave = document.createElement('div');
@@ -1761,13 +1756,8 @@
             }
             
             initScaleBar() {
-                L.control.scale({
-                    position: 'bottomright',
-                    maxWidth: 150,
-                    metric: true,
-                    imperial: false,
-                    updateWhenIdle: false
-                }).addTo(this.map);
+                // Масштабна лінійка вимкнена для швидшого завантаження
+                // L.control.scale().addTo(this.map);
             }
             
             async getAddress(lat, lng) {
@@ -2193,9 +2183,8 @@
     
     <!-- 
 
-        Система екстреного реагування для координації рятувальних операцій
         by Illia Usachov
-     
+
     -->
 </body>
 </html>
