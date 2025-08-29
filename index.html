@@ -1610,6 +1610,7 @@
                 this.activeIncidents.splice(incidentIndex, 1);
                 delete this.incidentVictims[incidentId];
                 delete this.incidentLogs[incidentId];
+                this.saveLocations();               // Зберігаємо стан груп
                 if (this.activeIncidents.length === 0) this.stopAllSOS();
             }
             
@@ -1635,6 +1636,7 @@
                 this.closeIncidentsPanel();         // Закриваємо панель інцидентів
                 this.stopWaves();                   // Зупиняємо анімацію хвиль
                 this.clearRoutes();                 // Очищуємо маршрути
+                this.saveLocations();               // Зберігаємо стан груп
                 this.showNotification('SOS режим зупинено');
             }
             
@@ -2683,7 +2685,10 @@
     </script>
     
     <!-- 
+        🆘 SOS Emergency System
+
         by Illia Usachov
+
     -->
 </body>
 </html>
