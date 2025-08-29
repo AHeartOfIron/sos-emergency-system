@@ -616,6 +616,31 @@
 
         .hidden { display: none !important; }
 
+        /* Стилі для кнопок керування перетягуванням */
+        .drag-enabled {
+            cursor: move !important;
+            opacity: 0.8;
+            transition: opacity 0.3s ease;
+        }
+        
+        .drag-enabled:hover {
+            opacity: 1;
+        }
+        
+        .drag-disabled {
+            cursor: default !important;
+            opacity: 1;
+        }
+        
+        /* Анімація для маркерів при перетягуванні */
+        .leaflet-marker-draggable {
+            transition: transform 0.2s ease;
+        }
+        
+        .leaflet-marker-draggable:hover {
+            transform: scale(1.1);
+        }
+
 
 
         .modal-overlay {
@@ -748,6 +773,14 @@
             <i class="fas fa-hospital"></i>
             <span>ЛІКАРНЯ</span>
         </button>
+        <button id="groupBtn" class="control-btn warning">
+            <i class="fas fa-users"></i>
+            <span>ГРУПИ</span>
+        </button>
+        <button id="dataBtn" class="control-btn" style="background: #607D8B;">
+            <i class="fas fa-database"></i>
+            <span>ДАНІ</span>
+        </button>
     </div>
 
     <div class="sos-panel">
@@ -860,11 +893,11 @@
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">Координати (клікніть на карті)</label>
+                    <label class="form-label">Координати (клікніть на карті або введіть вручну)</label>
                     <div id="miniMap" class="mini-map"></div>
                     <div style="display: flex; gap: 10px; margin-top: 5px;">
-                        <input type="number" id="hospitalLat" class="form-control" placeholder="Широта" step="any" readonly>
-                        <input type="number" id="hospitalLng" class="form-control" placeholder="Довгота" step="any" readonly>
+                        <input type="number" id="hospitalLat" class="form-control" placeholder="Широта" step="any">
+                        <input type="number" id="hospitalLng" class="form-control" placeholder="Довгота" step="any">
                     </div>
                 </div>
                 
@@ -888,6 +921,61 @@
                         ЗБЕРЕГТИ
                     </button>
                     <button type="button" onclick="clearHospitalForm()" class="control-btn">
+                        <i class="fas fa-eraser"></i>
+                        ОЧИСТИТИ
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Group Modal -->
+    <div id="groupModal" class="modal-overlay">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
+                <h3>Додати групу</h3>
+                <button class="close-btn" onclick="closeGroupModal()" style="color: #000;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="groupForm">
+                <div class="form-group">
+                    <label class="form-label">Назва групи</label>
+                    <input type="text" id="groupName" class="form-control" maxlength="50" required>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Тип групи</label>
+                        <select id="groupType" class="form-control">
+                            <option value="НТО">НТО</option>
+                            <option value="Розмінування">Розмінування</option>
+                            <option value="ІНРМ">ІНРМ</option>
+                            <option value="ТО">ТО</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Особовий склад</label>
+                        <input type="number" id="groupPersonnel" class="form-control" min="1" max="20" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Координати (клікніть на карті або введіть вручну)</label>
+                    <div id="groupMiniMap" class="mini-map"></div>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                        <input type="number" id="groupLat" class="form-control" placeholder="Широта" step="any">
+                        <input type="number" id="groupLng" class="form-control" placeholder="Довгота" step="any">
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 8px; justify-content: center; margin-top: 20px;">
+                    <button type="button" id="saveGroupBtn" class="control-btn primary">
+                        <i class="fas fa-save"></i>
+                        ЗБЕРЕГТИ
+                    </button>
+                    <button type="button" onclick="clearGroupForm()" class="control-btn">
                         <i class="fas fa-eraser"></i>
                         ОЧИСТИТИ
                     </button>
@@ -1003,8 +1091,8 @@
                 this.activeIncidents = [];          // Активні інциденти
                 this.incidentVictims = {};          // Картки постраждалих по інцидентах
                 this.incidentLogs = {};             // Журнали подій по інцидентах
-                this.groups = this.generateGroups();         // Генерація груп
-                this.hospitals = this.generateHospitals();   // Генерація лікарень
+                this.groups = [];                            // Групи (завантажуються з JSON)
+                this.hospitals = [];                         // Лікарні (завантажуються з JSON)
                 this.groupMarkers = [];             // Маркери груп на карті
                 this.sosMarker = null;              // SOS маркер (застарілий)
                 this.sosMarkers = [];               // Масив SOS маркерів
@@ -1016,12 +1104,13 @@
                 this.miniMap = null;                // Мінікарта для вибору координат
                 this.selectedCoords = null;         // Обрані координати
                 this.userLocation = null;           // Місцезнаходження користувача
-                this.init();
+                // init() викликається окремо в DOMContentLoaded
             }
             
-            init() {
+            async init() {
                 // Ініціалізація всіх компонентів системи
                 this.initMap();                     // Створення карти
+                await this.loadLocations();         // Завантаження локацій з JSON
                 this.bindEvents();                  // Прив'язка подій до кнопок
                 this.addGroupMarkers();             // Додавання маркерів груп
                 this.addHospitalMarkers();          // Додавання маркерів лікарень
@@ -1053,9 +1142,12 @@
                 document.getElementById('sosBtn').onclick = () => this.showAddGroupModal();           // Кнопка SOS
                 document.getElementById('incidentsBtn').onclick = () => this.toggleIncidentsPanel(); // Кнопка інцидентів
                 document.getElementById('hospitalBtn').onclick = () => this.showHospitalMenu();      // Кнопка лікарень
+                document.getElementById('groupBtn').onclick = () => this.showGroupMenu();            // Кнопка груп
                 document.getElementById('activateBtn').onclick = () => this.activateSelectedGroups(); // Активація груп
                 document.getElementById('saveVictimBtn').onclick = () => this.saveVictim();          // Збереження картки постраждалого
                 document.getElementById('saveHospitalBtn').onclick = () => this.saveHospital();      // Збереження лікарні
+                document.getElementById('saveGroupBtn').onclick = () => this.saveGroup();            // Збереження групи
+                document.getElementById('dataBtn').onclick = () => this.showDataMenu();              // Меню даних
                 document.getElementById('logInput').onkeypress = (e) => { if (e.key === 'Enter') this.addLog(); }; // Enter в полі логів
             }
             
@@ -1087,116 +1179,92 @@
                 });
             }
             
-            generateGroups() {
-                // Групи розкидані по всій Харківській області
-                const groups = [
-                    // Харків центр
-                    { id: 0, name: 'Альфа-1', type: 'НТО', personnel: 6, lat: 49.9935, lng: 36.2304, active: false },
-                    { id: 1, name: 'Браво-2', type: 'Розмінування', personnel: 8, lat: 49.9889, lng: 36.2278, active: false },
+            async loadLocations() {
+                try {
+                    // Спочатку пробуємо localStorage
+                    const saved = localStorage.getItem('sosLocations');
+                    if (saved) {
+                        const data = JSON.parse(saved);
+                        this.groups = data.groups || [];
+                        this.hospitals = data.hospitals || [];
+                        console.log('Локації завантажено з localStorage');
+                        return;
+                    }
                     
-                    // Ізюм
-                    { id: 2, name: 'Чарлі-3', type: 'ІНРМ', personnel: 5, lat: 49.2089, lng: 37.2567, active: false },
-                    { id: 3, name: 'Дельта-4', type: 'ТО', personnel: 7, lat: 49.1823, lng: 37.2156, active: false },
-                    
-                    // Куп'янськ
-                    { id: 4, name: 'Ехо-5', type: 'НТО', personnel: 6, lat: 49.7089, lng: 37.6234, active: false },
-                    { id: 5, name: 'Фокстрот-6', type: 'Розмінування', personnel: 9, lat: 49.6945, lng: 37.5789, active: false },
-                    
-                    // Балаклія
-                    { id: 6, name: 'Гольф-7', type: 'ІНРМ', personnel: 4, lat: 49.4567, lng: 36.8234, active: false },
-                    { id: 7, name: 'Готель-8', type: 'ТО', personnel: 8, lat: 49.4234, lng: 36.7890, active: false },
-                    
-                    // Лозова
-                    { id: 8, name: 'Індія-9', type: 'НТО', personnel: 7, lat: 48.8890, lng: 36.3234, active: false },
-                    { id: 9, name: 'Джульєт-10', type: 'Розмінування', personnel: 6, lat: 48.8567, lng: 36.2890, active: false },
-                    
-                    // Первомайський
-                    { id: 10, name: 'Кіло-11', type: 'ІНРМ', personnel: 5, lat: 48.9234, lng: 35.8567, active: false },
-                    { id: 11, name: 'Ліма-12', type: 'ТО', personnel: 9, lat: 48.8890, lng: 35.8234, active: false },
-                    
-                    // Красноград
-                    { id: 12, name: 'Майк-13', type: 'НТО', personnel: 8, lat: 49.0567, lng: 35.4234, active: false },
-                    { id: 13, name: 'Новембер-14', type: 'Розмінування', personnel: 7, lat: 49.0234, lng: 35.3890, active: false },
-                    
-                    // Богодухів
-                    { id: 14, name: 'Оскар-15', type: 'ІНРМ', personnel: 6, lat: 50.1567, lng: 35.5234, active: false },
-                    { id: 15, name: 'Папа-16', type: 'ТО', personnel: 5, lat: 50.1234, lng: 35.4890, active: false },
-                    
-                    // Вовчанськ
-                    { id: 16, name: 'Квебек-17', type: 'НТО', personnel: 7, lat: 50.2890, lng: 36.9567, active: false },
-                    { id: 17, name: 'Ромео-18', type: 'Розмінування', personnel: 8, lat: 50.2567, lng: 36.9234, active: false },
-                    
-                    // Чугуїв
-                    { id: 18, name: 'Сьєрра-19', type: 'ІНРМ', personnel: 6, lat: 49.8234, lng: 36.6890, active: false },
-                    { id: 19, name: 'Танго-20', type: 'ТО', personnel: 9, lat: 49.7890, lng: 36.6567, active: false },
-                    
-                    // Дергачі
-                    { id: 20, name: 'Уніформ-21', type: 'НТО', personnel: 5, lat: 50.1089, lng: 36.1234, active: false },
-                    { id: 21, name: 'Віктор-22', type: 'Розмінування', personnel: 7, lat: 50.0756, lng: 36.0890, active: false },
-                    
-                    // Мерефа
-                    { id: 22, name: 'Віскі-23', type: 'ІНРМ', personnel: 8, lat: 49.8234, lng: 36.0567, active: false },
-                    { id: 23, name: 'Рентген-24', type: 'ТО', personnel: 6, lat: 49.7890, lng: 36.0234, active: false },
-                    
-                    // Нова Водолага
-                    { id: 24, name: 'Янкі-25', type: 'НТО', personnel: 9, lat: 49.6234, lng: 35.8890, active: false },
-                    { id: 25, name: 'Зулу-26', type: 'Розмінування', personnel: 7, lat: 49.5890, lng: 35.8567, active: false },
-                    
-                    // Печеніги
-                    { id: 26, name: 'Альфа-27', type: 'ІНРМ', personnel: 5, lat: 50.0567, lng: 36.6234, active: false },
-                    { id: 27, name: 'Браво-28', type: 'ТО', personnel: 8, lat: 50.0234, lng: 36.5890, active: false }
-                ];
-                return groups;
+                    // Якщо немає в localStorage, завантажуємо з JSON
+                    const response = await fetch('./locations.json');
+                    const data = await response.json();
+                    this.groups = data.groups || [];
+                    this.hospitals = data.hospitals || [];
+                    console.log('Локації завантажено з JSON');
+                } catch (error) {
+                    console.error('Помилка завантаження локацій:', error);
+                    this.groups = this.generateDefaultGroups();
+                    this.hospitals = this.generateDefaultHospitals();
+                }
             }
             
-            generateHospitals() {
+            async saveLocations() {
+                const data = {
+                    groups: this.groups,
+                    hospitals: this.hospitals,
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                try {
+                    localStorage.setItem('sosLocations', JSON.stringify(data));
+                    console.log('Локації збережено в localStorage');
+                } catch (error) {
+                    console.error('Помилка збереження:', error);
+                }
+            }
+            
+            generateDefaultGroups() {
+                return [
+                    { id: 0, name: 'Альфа-1', type: 'НТО', personnel: 6, lat: 49.9935, lng: 36.2304, active: false, draggable: true },
+                    { id: 1, name: 'Браво-2', type: 'Розмінування', personnel: 8, lat: 49.2089, lng: 37.2567, active: false, draggable: true },
+                    { id: 2, name: 'Чарлі-3', type: 'ІНРМ', personnel: 5, lat: 49.7089, lng: 37.6234, active: false, draggable: true },
+                    { id: 3, name: 'Дельта-4', type: 'ТО', personnel: 7, lat: 49.4567, lng: 36.8234, active: false, draggable: true },
+                    { id: 4, name: 'Ехо-5', type: 'НТО', personnel: 6, lat: 48.8890, lng: 36.3234, active: false, draggable: true }
+                ];
+            }
+            
+            generateDefaultHospitals() {
                 return [
                     { 
+                        id: 1,
                         name: 'Обласна клінічна лікарня', 
                         lat: 49.9947, 
                         lng: 36.2310,
                         address: 'вул. Озерянська, 5, Харків',
                         contactPerson: 'Іванов Петро Сергійович',
                         emergencyPhone: '+380577123456',
+                        draggable: true,
                         staff: [
-                            { name: 'Петренко А.В.', position: 'Хірург', schedule: '8:00-16:00', phone: '+380501234567' },
-                            { name: 'Сидоренко М.І.', position: 'Анестезіолог', schedule: '16:00-8:00', phone: '+380501234568' }
+                            { name: 'Петренко А.В.', position: 'Хірург', schedule: '8:00-16:00', phone: '+380501234567' }
                         ]
                     },
                     { 
+                        id: 2,
                         name: 'Міська лікарня №2', 
                         lat: 49.9889, 
                         lng: 36.2278,
                         address: 'вул. Пушкінська, 15, Харків',
                         contactPerson: 'Коваленко Олена Миколаївна',
                         emergencyPhone: '+380577234567',
-                        staff: [
-                            { name: 'Мельник В.П.', position: 'Травматолог', schedule: '9:00-17:00', phone: '+380501234569' }
-                        ]
+                        draggable: true,
+                        staff: []
                     },
                     { 
-                        name: 'Медцентр "Медлайф"', 
-                        lat: 50.0012, 
-                        lng: 36.2401,
-                        address: 'пр. Науки, 45, Харків',
-                        contactPerson: 'Шевченко Андрій Володимирович',
-                        emergencyPhone: '+380577345678',
-                        staff: [
-                            { name: 'Бондаренко Т.С.', position: 'Терапевт', schedule: '8:00-20:00', phone: '+380501234570' },
-                            { name: 'Гриценко О.М.', position: 'Кардіолог', schedule: '10:00-18:00', phone: '+380501234571' }
-                        ]
-                    },
-                    { 
+                        id: 3,
                         name: 'Лікарня швидкої допомоги', 
                         lat: 49.9823, 
                         lng: 36.2156,
                         address: 'вул. Балакірєва, 3а, Харків',
                         contactPerson: 'Морозов Віктор Іванович',
                         emergencyPhone: '+380577456789',
-                        staff: [
-                            { name: 'Левченко Н.А.', position: 'Реаніматолог', schedule: 'Цілодобово', phone: '+380501234572' },
-                            { name: 'Ткаченко С.В.', position: 'Невролог', schedule: '12:00-20:00', phone: '+380501234573' }
-                        ]
+                        draggable: true,
+                        staff: []
                     }
                 ];
             }
@@ -1215,7 +1283,6 @@
             }
             
             addSingleGroupMarker(group) {
-                // Додавання одного маркера групи БЕЗ асинхронного завантаження адрес
                 const icon = L.divIcon({ 
                     html: '<div class="marker-group"></div>', 
                     className: 'custom-marker', 
@@ -1225,43 +1292,65 @@
                 
                 const marker = L.marker([group.lat, group.lng], { icon }).addTo(this.map);
                 this.groupMarkers.push({ marker, group });
-                
-                // Створюємо popup одразу БЕЗ очікування адреси
-                let popupContent = `<strong>${group.name}</strong><br>`;
-                popupContent += `${group.type}<br>`;
-                popupContent += `Особовий склад: ${group.personnel}<br>`;
-                popupContent += `Координати: ${group.lat.toFixed(6)}, ${group.lng.toFixed(6)}<br>`;
-                popupContent += `<div style="margin-top: 8px; display: flex; gap: 5px;">`;
-                popupContent += `<button onclick="navigator.clipboard.writeText('${group.lat.toFixed(6)}, ${group.lng.toFixed(6)}'); sosSystem.showNotification('Координати скопійовано')" style="background: #1976d2; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📋</button>`;
-                popupContent += `<button onclick="window.open('https://www.google.com/maps?q=${group.lat},${group.lng}', '_blank')" style="background: #4CAF50; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗺️</button>`;
-                popupContent += `<button onclick="sosSystem.findNearestHospitalForGroup(${group.id})" style="background: #FF9800; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🏥</button>`;
-                popupContent += `<button onclick="sosSystem.activateGroupFromMap(${group.id})" style="background: #d32f2f; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">🆘 SOS</button>`;
-                popupContent += `</div>`;
-                
+                this.updateGroupPopup(marker, group);
+            }
+            
+            updateGroupPopup(marker, group) {
+                let popupContent = `
+                    <div style="min-width: 200px;">
+                        <strong>${group.name}</strong><br>
+                        ${group.type} | ${group.personnel} осіб<br>
+                        <small>${group.lat.toFixed(6)}, ${group.lng.toFixed(6)}</small><br>
+                        <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                            <button onclick="sosSystem.editGroupFromMap(${group.id})" style="background: #9C27B0; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️</button>
+                            <button onclick="navigator.clipboard.writeText('${group.lat.toFixed(6)}, ${group.lng.toFixed(6)}'); sosSystem.showNotification('Координати скопійовано')" style="background: #1976d2; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">📋</button>
+                            <button onclick="sosSystem.findNearestHospitalForGroup(${group.id})" style="background: #FF9800; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">🏥</button>
+                            <button onclick="window.open('https://www.google.com/maps?q=${group.lat},${group.lng}', '_blank')" style="background: #4CAF50; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗺️</button>
+                        </div>
+                        <button onclick="sosSystem.activateGroupFromMap(${group.id})" style="background: #d32f2f; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; margin-top: 8px; width: 100%; font-weight: bold;">🆘 SOS</button>
+                    </div>
+                `;
                 marker.bindPopup(popupContent);
             }
             
             addHospitalMarkers() {
-                // Додавання маркерів лікарень на карту
+                // Додавання маркерів лікарень на карту з можливістю перетягування
+                this.hospitalMarkers = [];
                 this.hospitals.forEach(hospital => {
-                    const icon = L.divIcon({ 
-                        html: '<div class="marker-hospital"></div>', 
-                        className: 'custom-marker', 
-                        iconSize: [18, 18], 
-                        iconAnchor: [9, 9] 
-                    });
-                    
-                    let hospitalPopup = `<strong>${hospital.name}</strong><br>Лікарня<br>`;
-                    hospitalPopup += `Координати: ${hospital.lat.toFixed(6)}, ${hospital.lng.toFixed(6)}<br>`;
-                    hospitalPopup += `<div style="margin-top: 8px; display: flex; gap: 5px;">`;
-                    hospitalPopup += `<button onclick="navigator.clipboard.writeText('${hospital.lat.toFixed(6)}, ${hospital.lng.toFixed(6)}'); sosSystem.showNotification('Координати скопійовано')" style="background: #1976d2; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">📋</button>`;
-                    hospitalPopup += `<button onclick="window.open('https://www.google.com/maps?q=${hospital.lat},${hospital.lng}', '_blank')" style="background: #4CAF50; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗺️</button>`;
-                    hospitalPopup += `</div>`;
-                    
-                    L.marker([hospital.lat, hospital.lng], { icon })
-                        .bindPopup(hospitalPopup)
-                        .addTo(this.map);
+                    this.addSingleHospitalMarker(hospital);
                 });
+            }
+            
+            addSingleHospitalMarker(hospital) {
+                const icon = L.divIcon({ 
+                    html: '<div class="marker-hospital"></div>', 
+                    className: 'custom-marker', 
+                    iconSize: [18, 18], 
+                    iconAnchor: [9, 9] 
+                });
+                
+                const marker = L.marker([hospital.lat, hospital.lng], { icon }).addTo(this.map);
+                this.hospitalMarkers = this.hospitalMarkers || [];
+                this.hospitalMarkers.push({ marker, hospital });
+                this.updateHospitalPopup(marker, hospital);
+            }
+            
+            updateHospitalPopup(marker, hospital) {
+                let hospitalPopup = `
+                    <div style="min-width: 200px;">
+                        <strong>${hospital.name}</strong><br>
+                        <small>Лікарня</small><br>
+                        ${hospital.address ? hospital.address + '<br>' : ''}
+                        <small>${hospital.lat.toFixed(6)}, ${hospital.lng.toFixed(6)}</small><br>
+                        <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                            <button onclick="sosSystem.editHospitalFromMap(${hospital.id})" style="background: #9C27B0; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️</button>
+                            <button onclick="navigator.clipboard.writeText('${hospital.lat.toFixed(6)}, ${hospital.lng.toFixed(6)}'); sosSystem.showNotification('Координати скопійовано')" style="background: #1976d2; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">📋</button>
+                            <button onclick="window.open('https://www.google.com/maps?q=${hospital.lat},${hospital.lng}', '_blank')" style="background: #4CAF50; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗺️</button>
+                            <button onclick="sosSystem.deleteHospital(${hospital.id})" style="background: #f44336; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️</button>
+                        </div>
+                    </div>
+                `;
+                marker.bindPopup(hospitalPopup);
             }
             
             showAddGroupModal() {
@@ -1913,42 +2002,74 @@
             initMiniMap() {
                 if (this.miniMap) this.miniMap.remove();
                 
-                this.miniMap = L.map('miniMap').setView([49.9935, 36.2304], 12);
+                const currentLat = parseFloat(document.getElementById('hospitalLat').value) || 49.9935;
+                const currentLng = parseFloat(document.getElementById('hospitalLng').value) || 36.2304;
+                
+                this.miniMap = L.map('miniMap').setView([currentLat, currentLng], 12);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.miniMap);
                 
+                // Показати поточну позицію
+                if (document.getElementById('hospitalLat').value && document.getElementById('hospitalLng').value) {
+                    this.tempMarker = L.marker([currentLat, currentLng]).addTo(this.miniMap);
+                }
+                
                 this.miniMap.on('click', (e) => {
-                    this.selectedCoords = e.latlng;
                     document.getElementById('hospitalLat').value = e.latlng.lat.toFixed(6);
                     document.getElementById('hospitalLng').value = e.latlng.lng.toFixed(6);
                     
                     if (this.tempMarker) this.miniMap.removeLayer(this.tempMarker);
                     this.tempMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(this.miniMap);
                 });
+                
+                // Обробка ручного введення координат
+                ['hospitalLat', 'hospitalLng'].forEach(id => {
+                    document.getElementById(id).addEventListener('input', () => {
+                        const lat = parseFloat(document.getElementById('hospitalLat').value);
+                        const lng = parseFloat(document.getElementById('hospitalLng').value);
+                        if (lat && lng && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                            if (this.tempMarker) this.miniMap.removeLayer(this.tempMarker);
+                            this.tempMarker = L.marker([lat, lng]).addTo(this.miniMap);
+                            this.miniMap.setView([lat, lng], 12);
+                        }
+                    });
+                });
             }
             
             saveHospital() {
-                const hospital = {
-                    id: Date.now(),
+                const hospitalData = {
                     name: document.getElementById('hospitalName').value,
                     address: document.getElementById('hospitalAddress').value,
                     contactPerson: document.getElementById('contactPerson').value,
                     emergencyPhone: document.getElementById('emergencyPhone').value,
                     lat: parseFloat(document.getElementById('hospitalLat').value),
                     lng: parseFloat(document.getElementById('hospitalLng').value),
-                    staff: [...this.hospitalStaff],
-                    timestamp: new Date().toLocaleString('uk-UA')
+                    staff: [...this.hospitalStaff]
                 };
                 
-                if (!hospital.name || !hospital.address || !hospital.lat || !hospital.lng) {
-                    this.showNotification('Заповніть всі обов\'язкові поля та оберіть координати', 'error');
+                if (!hospitalData.name || !hospitalData.lat || !hospitalData.lng) {
+                    this.showNotification('Заповніть назву та координати', 'error');
                     return;
                 }
                 
-                this.hospitals.push(hospital);
-                this.addHospitalMarker(hospital);
+                if (this.editingHospitalIndex !== undefined) {
+                    // Редагування існуючої лікарні
+                    Object.assign(this.hospitals[this.editingHospitalIndex], hospitalData);
+                    this.showNotification('Лікарню оновлено');
+                } else {
+                    // Створення нової лікарні
+                    const newHospital = {
+                        id: Date.now(),
+                        ...hospitalData,
+                        draggable: true
+                    };
+                    this.hospitals.push(newHospital);
+                    this.showNotification('Лікарню додано');
+                }
+                
+                this.saveLocations();
+                this.refreshHospitalMarkers();
                 this.clearHospitalForm();
                 this.closeHospitalModal();
-                this.showNotification('Лікарню додано');
             }
             
             addHospitalMarker(hospital) {
@@ -1982,6 +2103,7 @@
                 this.hospitalStaff = [];
                 this.updateStaffList();
                 this.selectedCoords = null;
+                this.editingHospitalIndex = undefined;
                 if (this.tempMarker && this.miniMap) {
                     this.miniMap.removeLayer(this.tempMarker);
                 }
@@ -2052,7 +2174,7 @@
                                 ${hospital.emergencyPhone ? 'Тел: ' + hospital.emergencyPhone + '<br>' : ''}
                                 <button onclick="window.sosSystem.goToHospital(${index}); document.body.removeChild(document.querySelector('.modal-overlay'));" class="btn-sm btn-primary">Перейти</button>
                                 <button onclick="window.sosSystem.editHospital(${index});" class="btn-sm btn-warning" style="margin-left: 5px;">Редагувати</button>
-                                <button onclick="window.sosSystem.deleteHospital(${index});" class="btn-sm btn-danger" style="margin-left: 5px;">Видалити</button>
+                                <button onclick="window.sosSystem.deleteHospitalById(${hospital.id});" class="btn-sm btn-danger" style="margin-left: 5px;">Видалити</button>
                             </div>
                         `;
                     });
@@ -2102,13 +2224,389 @@
             }
             
             refreshHospitalMarkers() {
-                this.map.eachLayer(layer => {
-                    if (layer.options && layer.options.icon && layer.options.icon.options.html && 
-                        layer.options.icon.options.html.includes('marker-hospital')) {
-                        this.map.removeLayer(layer);
-                    }
-                });
+                // Видаляємо всі маркери лікарень
+                if (this.hospitalMarkers) {
+                    this.hospitalMarkers.forEach(({ marker }) => {
+                        this.map.removeLayer(marker);
+                    });
+                }
+                // Додаємо маркери знову
                 this.addHospitalMarkers();
+            }
+            
+            editHospitalFromMap(hospitalId) {
+                const hospital = this.hospitals.find(h => h.id === hospitalId);
+                if (!hospital) return;
+                
+                document.getElementById('hospitalName').value = hospital.name;
+                document.getElementById('hospitalAddress').value = hospital.address || '';
+                document.getElementById('contactPerson').value = hospital.contactPerson || '';
+                document.getElementById('emergencyPhone').value = hospital.emergencyPhone || '';
+                document.getElementById('hospitalLat').value = hospital.lat;
+                document.getElementById('hospitalLng').value = hospital.lng;
+                
+                this.hospitalStaff = [...(hospital.staff || [])];
+                this.updateStaffList();
+                this.editingHospitalIndex = this.hospitals.findIndex(h => h.id === hospitalId);
+                this.showHospitalModal();
+            }
+            
+            deleteHospital(hospitalId) {
+                if (confirm('Видалити лікарню?')) {
+                    this.hospitals = this.hospitals.filter(h => h.id !== hospitalId);
+                    this.saveLocations();
+                    this.refreshHospitalMarkers();
+                    this.showNotification('Лікарню видалено');
+                }
+            }
+            
+            showGroupMenu() {
+                const menu = document.createElement('div');
+                menu.style.cssText = `
+                    position: fixed;
+                    bottom: 80px;
+                    left: 20px;
+                    background: white;
+                    border: 2px solid #ddd;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                    z-index: 10000;
+                    padding: 10px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                `;
+                
+                menu.innerHTML = `
+                    <button onclick="sosSystem.showGroupModal(); document.body.removeChild(this.parentElement);" class="control-btn primary" style="margin: 0; min-width: 150px;">
+                        <i class="fas fa-plus"></i>
+                        Створити групу
+                    </button>
+                    <button onclick="sosSystem.showGroupsList(); document.body.removeChild(this.parentElement);" class="control-btn secondary" style="margin: 0; min-width: 150px;">
+                        <i class="fas fa-list"></i>
+                        Список груп
+                    </button>
+                `;
+                
+                document.body.appendChild(menu);
+                
+                setTimeout(() => {
+                    document.addEventListener('click', function closeMenu(e) {
+                        if (!menu.contains(e.target) && !document.getElementById('groupBtn').contains(e.target)) {
+                            if (menu.parentElement) document.body.removeChild(menu);
+                            document.removeEventListener('click', closeMenu);
+                        }
+                    });
+                }, 100);
+            }
+            
+            showGroupModal() {
+                document.getElementById('groupModal').classList.add('active');
+                setTimeout(() => this.initGroupMiniMap(), 100);
+            }
+            
+            closeGroupModal() {
+                document.getElementById('groupModal').classList.remove('active');
+                if (this.groupMiniMap) {
+                    this.groupMiniMap.remove();
+                    this.groupMiniMap = null;
+                }
+            }
+            
+            initGroupMiniMap() {
+                if (this.groupMiniMap) this.groupMiniMap.remove();
+                
+                const currentLat = parseFloat(document.getElementById('groupLat').value) || 49.9935;
+                const currentLng = parseFloat(document.getElementById('groupLng').value) || 36.2304;
+                
+                this.groupMiniMap = L.map('groupMiniMap').setView([currentLat, currentLng], 10);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.groupMiniMap);
+                
+                // Показати поточну позицію
+                if (document.getElementById('groupLat').value && document.getElementById('groupLng').value) {
+                    this.tempGroupMarker = L.marker([currentLat, currentLng]).addTo(this.groupMiniMap);
+                }
+                
+                this.groupMiniMap.on('click', (e) => {
+                    document.getElementById('groupLat').value = e.latlng.lat.toFixed(6);
+                    document.getElementById('groupLng').value = e.latlng.lng.toFixed(6);
+                    
+                    if (this.tempGroupMarker) this.groupMiniMap.removeLayer(this.tempGroupMarker);
+                    this.tempGroupMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(this.groupMiniMap);
+                });
+                
+                // Обробка ручного введення координат
+                ['groupLat', 'groupLng'].forEach(id => {
+                    document.getElementById(id).addEventListener('input', () => {
+                        const lat = parseFloat(document.getElementById('groupLat').value);
+                        const lng = parseFloat(document.getElementById('groupLng').value);
+                        if (lat && lng && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                            if (this.tempGroupMarker) this.groupMiniMap.removeLayer(this.tempGroupMarker);
+                            this.tempGroupMarker = L.marker([lat, lng]).addTo(this.groupMiniMap);
+                            this.groupMiniMap.setView([lat, lng], 12);
+                        }
+                    });
+                });
+            }
+            
+            saveGroup() {
+                const groupData = {
+                    name: document.getElementById('groupName').value,
+                    type: document.getElementById('groupType').value,
+                    personnel: parseInt(document.getElementById('groupPersonnel').value),
+                    lat: parseFloat(document.getElementById('groupLat').value),
+                    lng: parseFloat(document.getElementById('groupLng').value)
+                };
+                
+                if (!groupData.name || !groupData.personnel || !groupData.lat || !groupData.lng) {
+                    this.showNotification('Заповніть всі обов\'\u044fзкові поля та оберіть координати', 'error');
+                    return;
+                }
+                
+                if (this.editingGroupIndex !== undefined) {
+                    // Редагування існуючої групи
+                    Object.assign(this.groups[this.editingGroupIndex], groupData);
+                    this.editingGroupIndex = undefined;
+                    this.showNotification('Групу оновлено');
+                } else {
+                    // Створення нової групи
+                    const newGroup = {
+                        id: Date.now(),
+                        ...groupData,
+                        active: false,
+                        timestamp: new Date().toLocaleString('uk-UA')
+                    };
+                    this.groups.push(newGroup);
+                    this.showNotification('Групу додано');
+                }
+                
+                this.saveLocations();
+                this.refreshGroupMarkers();
+                this.clearGroupForm();
+                this.closeGroupModal();
+            }
+            
+            clearGroupForm() {
+                document.getElementById('groupForm').reset();
+                this.selectedGroupCoords = null;
+                this.editingGroupIndex = undefined;
+                if (this.tempGroupMarker && this.groupMiniMap) {
+                    this.groupMiniMap.removeLayer(this.tempGroupMarker);
+                }
+            }
+            
+            showGroupsList() {
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay active';
+                
+                let listContent = '<h3>Список груп</h3><div style="max-height: 300px; overflow-y: auto;">';
+                
+                if (this.groups.length === 0) {
+                    listContent += '<p>Груп не додано</p>';
+                } else {
+                    this.groups.forEach((group, index) => {
+                        listContent += `
+                            <div style="border: 1px solid #ddd; border-radius: 5px; padding: 10px; margin: 5px 0;">
+                                <strong>${group.name}</strong> - ${group.type}<br>
+                                Особовий склад: ${group.personnel}<br>
+                                Координати: ${group.lat.toFixed(4)}, ${group.lng.toFixed(4)}<br>
+                                <button onclick="window.sosSystem.goToGroup(${index}); document.body.removeChild(document.querySelector('.modal-overlay'));" class="btn-sm btn-primary">Перейти</button>
+                                <button onclick="window.sosSystem.editGroup(${index});" class="btn-sm btn-warning" style="margin-left: 5px;">Редагувати</button>
+                                <button onclick="window.sosSystem.deleteGroupById(${group.id});" class="btn-sm btn-danger" style="margin-left: 5px;">Видалити</button>
+                            </div>
+                        `;
+                    });
+                }
+                
+                listContent += '</div>';
+                
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        ${listContent}
+                        <button onclick="document.body.removeChild(this.closest('.modal-overlay'))" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+            }
+            
+            editGroup(index) {
+                const group = this.groups[index];
+                document.getElementById('groupName').value = group.name || '';
+                document.getElementById('groupType').value = group.type || 'НТО';
+                document.getElementById('groupPersonnel').value = group.personnel || '';
+                document.getElementById('groupLat').value = group.lat || '';
+                document.getElementById('groupLng').value = group.lng || '';
+                this.editingGroupIndex = index;
+                const modal = document.querySelector('.modal-overlay');
+                if (modal) document.body.removeChild(modal);
+                this.showGroupModal();
+            }
+            
+            deleteGroup(index) {
+                if (confirm('Видалити групу?')) {
+                    this.groups.splice(index, 1);
+                    this.saveLocations();
+                    this.refreshGroupMarkers();
+                    const modal = document.querySelector('.modal-overlay');
+                    if (modal) document.body.removeChild(modal);
+                    this.showNotification('Групу видалено');
+                }
+            }
+            
+            deleteHospitalById(hospitalId) {
+                if (confirm('Видалити лікарню?')) {
+                    this.hospitals = this.hospitals.filter(h => h.id !== hospitalId);
+                    this.saveLocations();
+                    this.refreshHospitalMarkers();
+                    const modal = document.querySelector('.modal-overlay');
+                    if (modal) document.body.removeChild(modal);
+                    this.showNotification('Лікарню видалено');
+                }
+            }
+            
+            deleteGroupById(groupId) {
+                if (confirm('Видалити групу?')) {
+                    this.groups = this.groups.filter(g => g.id !== groupId);
+                    this.saveLocations();
+                    this.refreshGroupMarkers();
+                    const modal = document.querySelector('.modal-overlay');
+                    if (modal) document.body.removeChild(modal);
+                    this.showNotification('Групу видалено');
+                }
+            }
+            
+            goToGroup(index) {
+                const group = this.groups[index];
+                this.map.setView([group.lat, group.lng], 16, { animate: true, duration: 1.5 });
+            }
+            
+            refreshGroupMarkers() {
+                this.groupMarkers.forEach(({ marker }) => {
+                    this.map.removeLayer(marker);
+                });
+                this.groupMarkers = [];
+                this.addGroupMarkers();
+            }
+            
+            editGroupFromMap(groupId) {
+                const group = this.groups.find(g => g.id === groupId);
+                if (!group) return;
+                
+                document.getElementById('groupName').value = group.name;
+                document.getElementById('groupType').value = group.type;
+                document.getElementById('groupPersonnel').value = group.personnel;
+                document.getElementById('groupLat').value = group.lat;
+                document.getElementById('groupLng').value = group.lng;
+                
+                this.editingGroupIndex = this.groups.findIndex(g => g.id === groupId);
+                this.showGroupModal();
+            }
+            
+
+            
+            showDataMenu() {
+                const menu = document.createElement('div');
+                menu.style.cssText = `
+                    position: fixed;
+                    bottom: 80px;
+                    left: 20px;
+                    background: white;
+                    border: 2px solid #ddd;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                    z-index: 10000;
+                    padding: 10px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                `;
+                
+                menu.innerHTML = `
+                    <button onclick="sosSystem.exportData(); document.body.removeChild(this.parentElement);" class="control-btn" style="margin: 0; min-width: 150px; background: #4CAF50;">
+                        <i class="fas fa-download"></i>
+                        Експорт даних
+                    </button>
+                    <button onclick="sosSystem.importData(); document.body.removeChild(this.parentElement);" class="control-btn" style="margin: 0; min-width: 150px; background: #FF9800;">
+                        <i class="fas fa-upload"></i>
+                        Імпорт даних
+                    </button>
+                    <button onclick="sosSystem.resetData(); document.body.removeChild(this.parentElement);" class="control-btn" style="margin: 0; min-width: 150px; background: #f44336;">
+                        <i class="fas fa-refresh"></i>
+                        Скинути дані
+                    </button>
+                `;
+                
+                document.body.appendChild(menu);
+                
+                setTimeout(() => {
+                    document.addEventListener('click', function closeMenu(e) {
+                        if (!menu.contains(e.target) && !document.getElementById('dataBtn').contains(e.target)) {
+                            if (menu.parentElement) document.body.removeChild(menu);
+                            document.removeEventListener('click', closeMenu);
+                        }
+                    });
+                }, 100);
+            }
+            
+            exportData() {
+                const data = {
+                    groups: this.groups,
+                    hospitals: this.hospitals,
+                    exported: new Date().toISOString()
+                };
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `sos-locations-${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                this.showNotification('Дані експортовано');
+            }
+            
+            importData() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = JSON.parse(e.target.result);
+                            if (data.groups && data.hospitals) {
+                                this.groups = data.groups;
+                                this.hospitals = data.hospitals;
+                                this.saveLocations();
+                                this.refreshGroupMarkers();
+                                this.refreshHospitalMarkers();
+                                this.showNotification('Дані імпортовано');
+                            } else {
+                                this.showNotification('Невірний формат файлу', 'error');
+                            }
+                        } catch (error) {
+                            this.showNotification('Помилка читання файлу', 'error');
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+                input.click();
+            }
+            
+            resetData() {
+                if (confirm('Скинути всі дані до початкових значень?')) {
+                    this.groups = this.generateDefaultGroups();
+                    this.hospitals = this.generateDefaultHospitals();
+                    this.saveLocations();
+                    this.refreshGroupMarkers();
+                    this.refreshHospitalMarkers();
+                    this.showNotification('Дані скинуто');
+                }
             }
         }
         
@@ -2123,6 +2621,8 @@
         function clearVictimForm() { sosSystem.clearVictimForm(); }
         function closeHospitalModal() { sosSystem.closeHospitalModal(); }
         function clearHospitalForm() { sosSystem.clearHospitalForm(); }
+        function closeGroupModal() { sosSystem.closeGroupModal(); }
+        function clearGroupForm() { sosSystem.clearGroupForm(); }
         
         function addStaff() {
             const name = document.getElementById('staffName').value.trim();
@@ -2174,17 +2674,16 @@
         
         // Ініціалізація системи при завантаженні сторінки
         let sosSystem;
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             sosSystem = new SOSSystem();         // Створення екземпляру системи
+            await sosSystem.init();              // Асинхронна ініціалізація
             window.sosSystem = sosSystem;        // Глобальний доступ для HTML
             console.log('🆘 SOS System initialized by Illia Usachov');
         });
     </script>
     
     <!-- 
-
         by Illia Usachov
-
     -->
 </body>
 </html>
