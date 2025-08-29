@@ -949,10 +949,14 @@
                     <div class="form-group">
                         <label class="form-label">Тип групи</label>
                         <select id="groupType" class="form-control">
-                            <option value="НТО">НТО</option>
-                            <option value="Розмінування">Розмінування</option>
                             <option value="ІНРМ">ІНРМ</option>
+                            <option value="НТО">НТО</option>
                             <option value="ТО">ТО</option>
+                            <option value="Розмінування">Розмінування</option>
+                            <option value="Знешкодження (Знищення) ВНП">Знешкодження (Знищення) ВНП</option>
+                            <option value="Оперативного розмінування">Оперативного розмінування</option>
+                            <option value="Механізованого розмінування">Механізованого розмінування</option>
+                            <option value="Евакуації">Евакуації</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1199,8 +1203,8 @@
                     console.log('Локації завантажено з JSON');
                 } catch (error) {
                     console.error('Помилка завантаження локацій:', error);
-                    this.groups = this.generateDefaultGroups();
-                    this.hospitals = this.generateDefaultHospitals();
+                    this.groups = [];
+                    this.hospitals = [];
                 }
             }
             
@@ -1219,55 +1223,7 @@
                 }
             }
             
-            generateDefaultGroups() {
-                return [
-                    { id: 0, name: 'Альфа-1', type: 'НТО', personnel: 6, lat: 49.9935, lng: 36.2304, active: false, draggable: true },
-                    { id: 1, name: 'Браво-2', type: 'Розмінування', personnel: 8, lat: 49.2089, lng: 37.2567, active: false, draggable: true },
-                    { id: 2, name: 'Чарлі-3', type: 'ІНРМ', personnel: 5, lat: 49.7089, lng: 37.6234, active: false, draggable: true },
-                    { id: 3, name: 'Дельта-4', type: 'ТО', personnel: 7, lat: 49.4567, lng: 36.8234, active: false, draggable: true },
-                    { id: 4, name: 'Ехо-5', type: 'НТО', personnel: 6, lat: 48.8890, lng: 36.3234, active: false, draggable: true }
-                ];
-            }
-            
-            generateDefaultHospitals() {
-                return [
-                    { 
-                        id: 1,
-                        name: 'Обласна клінічна лікарня', 
-                        lat: 49.9947, 
-                        lng: 36.2310,
-                        address: 'вул. Озерянська, 5, Харків',
-                        contactPerson: 'Іванов Петро Сергійович',
-                        emergencyPhone: '+380577123456',
-                        draggable: true,
-                        staff: [
-                            { name: 'Петренко А.В.', position: 'Хірург', schedule: '8:00-16:00', phone: '+380501234567' }
-                        ]
-                    },
-                    { 
-                        id: 2,
-                        name: 'Міська лікарня №2', 
-                        lat: 49.9889, 
-                        lng: 36.2278,
-                        address: 'вул. Пушкінська, 15, Харків',
-                        contactPerson: 'Коваленко Олена Миколаївна',
-                        emergencyPhone: '+380577234567',
-                        draggable: true,
-                        staff: []
-                    },
-                    { 
-                        id: 3,
-                        name: 'Лікарня швидкої допомоги', 
-                        lat: 49.9823, 
-                        lng: 36.2156,
-                        address: 'вул. Балакірєва, 3а, Харків',
-                        contactPerson: 'Морозов Віктор Іванович',
-                        emergencyPhone: '+380577456789',
-                        draggable: true,
-                        staff: []
-                    }
-                ];
-            }
+
             
             addGroupMarkers() {
                 // Очищуємо старі маркери груп
@@ -2601,13 +2557,13 @@
             }
             
             resetData() {
-                if (confirm('Скинути всі дані до початкових значень?')) {
-                    this.groups = this.generateDefaultGroups();
-                    this.hospitals = this.generateDefaultHospitals();
+                if (confirm('Очистити всі дані?')) {
+                    this.groups = [];
+                    this.hospitals = [];
                     this.saveLocations();
                     this.refreshGroupMarkers();
                     this.refreshHospitalMarkers();
-                    this.showNotification('Дані скинуто');
+                    this.showNotification('Дані очищено');
                 }
             }
         }
@@ -2683,12 +2639,6 @@
             console.log('🆘 SOS System initialized by Illia Usachov');
         });
     </script>
-    
-    <!-- 
-        🆘 SOS Emergency System
 
-        by Illia Usachov
-
-    -->
 </body>
 </html>
