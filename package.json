@@ -1,0 +1,31 @@
+{
+  "name": "sos-emergency-system",
+  "version": "2.0.0",
+  "description": "🆘 Система екстреного реагування для координації рятувальних операцій",
+  "main": "index.html",
+  "scripts": {
+    "start": "python server.py",
+    "dev": "python server.py",
+    "build": "echo 'Static site - no build needed'",
+    "test": "echo 'No tests specified'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/sos-emergency-system.git"
+  },
+  "keywords": [
+    "emergency",
+    "sos",
+    "rescue",
+    "map",
+    "leaflet",
+    "ukraine",
+    "система-реагування"
+  ],
+  "author": "Illia Usachov",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yourusername/sos-emergency-system/issues"
+  },
+  "homepage": "https://yourusername.github.io/sos-emergency-system/"
+}
