@@ -3,7 +3,7 @@
 Система екстреного реагування для координації рятувальних операцій.
 
 
-**Запустити систему:** [https://yourusername.github.io/sos-emergency-system/](https://AHeartOfIron.github.io/sos-emergency-system/)
+**Запустити систему:** [https://AHeartOfIron.github.io/sos-emergency-system/](https://AHeartOfIron.github.io/sos-emergency-system/)
 
 ## 📄 Ліцензія
 
